@@ -26,7 +26,7 @@ sub CO2_MH_Z19_Initialize($) {
   $hash->{AttrFn}    = 	"CO2_MH_Z19_Attr";
   $hash->{SetFn}     = 	"CO2_MH_Z19_Set";
   $hash->{GetFn}     = 	"CO2_MH_Z19_Get";
-  $hash->{AttrList}  = 	"tempOffset interval do_not_notify:1,0 ignore:1,0 showtime:1,0 ".
+  $hash->{AttrList}  = 	"tempOffset interval ".
 												"$readingFnAttributes";
 }
 ################################### Todo: Set or Attribute for Mode? Other sets needed?
@@ -91,19 +91,6 @@ sub CO2_MH_Z19_Reopen($) {
     DevIo_CloseDev($hash);
     sleep(1);
     DevIo_OpenDev( $hash, 0, "CO2_MH_Z19_DoInit" );
-}
-
-sub CO2_MH_Z19_Poll($) {
-		my ($hash) = @_;
-		Log3 $hash->{NAME}, 1, "Entering BlockingCall subfunction";
-		sleep(10);
-		return "done";
-}
-
-sub CO2_MH_Z19_GetfinishFn($) {
-		my ($string) = @_;
-		Log3 "CO2_MH_Z19", 1, "Entering Finish subfunction $string";
-		return;
 }
 
 ################################### 
@@ -287,6 +274,10 @@ sub CO2_MH_Z19_Define($$) {			#
     my $name = $a[0];
     my $dev  = $a[2];
 
+	if (! ($dev =~ /\@/)) {
+		$dev.="\@9600";
+	}
+
     $hash->{DeviceName} = $dev;
     my $ret = DevIo_OpenDev( $hash, 0, "CO2_MH_Z19_DoInit" );
 	
@@ -309,30 +300,65 @@ sub CO2_MH_Z19_Define($$) {			#
 <h3>CO2_MH_Z19</h3>
 <a id="CO2_MH_Z19"></a>
 <ul>
-		provides an a test<br>
+	interface to the MH-Z19 and related sensors. The sensor has to be attached to a serial unix device, either directly to Tx/Rx on e.g. a Raspberry using e.g. /dev/ttyAMA0 or via a USB to UART converter. Then the device can typically be found under /dev/serial/by-id/... <br>
 	<a id="CO2_MH_Z19-define"></a><br>
 	<b>Define</b>
 	<ul>
-		define
+		<code>define &lt;name&gt; CO2_MH_Z19 &lt;serial device&gt;</code><br>
+		Attaches the module to a serial device. Optionally a baudrate can be given, otherwise the default of 9600 baud is used.
 		<br>
 	</ul>
-
+	<br>
 	<a id="CO2_MH_Z19-set"></a>
 	<b>Set</b>
 	<ul>
-		<li><b>set calibrate</b><br>
-			<a id="CO2_MH_Z19-set-set1"></a>
-			set calibrate<br>
+		<li><b>set calibrate yes</b><br>
+			<a id="CO2_MH_Z19-set-calibrate"></a>
+			Switches the sensor into calibration mode. For approx. 20 minutes, the sensor will try to find the lowest CO2 measurement and assumes this to be the 400 ppm that are typical in fresh air.<br>
+			Only perform this either outside or while supplying constant fresh air to the room, to avoid a wrong calibration.<br>
+			The argument "yes" is used a protection against accidential use.<br>
 		</li>
 		<li><b>set reopen</b><br>
-			<a id="CO2_MH_Z19-set-set2"></a>
-			set reopen<br>
+			<a id="CO2_MH_Z19-set-reopen"></a>
+			Reopens the connection to the serial device via FHEM DevIO<br>
+		</li>
+		<li><b>set selfCalibration on|off</b><br>
+			<a id="CO2_MH_Z19-set-selfCalibration"></a>
+			Defines if the device should do constant self calibration.<br>
+			This assumes that at least once every 24h the room is supplied with fresh air and the lowest measured value correspond to 400 ppm.<br>
+			If you cannot guarantee that, you should rather switch this to off to avoid wrong calibration and use the "set calibrate" option in fresh air from time to time.<br>
+		</li>		
+	</ul>
+	<br>
+	<a id="CO2_MH_Z19-get"></a>
+	<b>Get</b>
+	<ul>
+		<li><b>get deviceinfo</b><br>
+		<a id="CO2_MH_Z19-get-deviceinfo"></a>
+			Attempts to read some device properties like Firmware version, max. CO2 measurement Rage and status of selfCalibration and stores them in the appropriate readings.<br>
+			This is automatically executed at device initialization.<br>
+		</li>
+		<li><b>get update</b><br>
+		<a id="CO2_MH_Z19-get-update"></a>
+			Manually triggers reading of CO2 and temperature values.<br>
 		</li>
 	</ul>
-
+	<br>
 	<a id="CO2_MH_Z19-attr"></a>
 	<b>Attributes</b>
 	<ul>
+		<li><b>interval</b><br>
+		<a id="CO2_MH_Z19-attr-interval"></a>
+			Interval in minutes new CO2 and temperature values are read from the device. A value of 0 disables automatic updates.<br>
+			The default is 5 minutes<br>
+		</li>
+		<li><b>interval</b><br>
+		<a id="CO2_MH_Z19-attr-tempOffset"></a>
+			The temperature sensor in the device is not very usable to measure actual room temperature.<br>
+			The module attemps to apply an offset that should lead to somewhat reasonable measurements, though they might differ from device to device.<br>
+			This value is added to the reading before storing it. Default is 0.<br>
+		</li>
+
 		<br>
 		<br>
 	</ul>
