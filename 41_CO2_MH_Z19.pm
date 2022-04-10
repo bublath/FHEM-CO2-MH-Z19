@@ -8,7 +8,7 @@ use Data::Dumper;
 my %sets = (
   "calibrate" => "textField",
   "selfCalibration" => "on,off",
-  "reopen" => "textField",
+  "reopen" => "noArg",
  );
  
  my %gets = (
@@ -54,13 +54,6 @@ sub CO2_MH_Z19_Set($@) {					#
 		return "CO2_MH_Z19_Set: Unknown argument $cmd, choose one of " . join(" ", @cList);
 	} # error unknown cmd handling
 	
-	if ( $cmd eq "update") {
-		$hash->{helper}{xx}="set account";
-		Log3 $hash->{NAME}, 1, "Call echo";
-		system("echo test > test.txt &");
-		Log3 $hash->{NAME}, 1, "Echo done";
-		return undef;
-	}
 	if ( $cmd eq "reopen") {
 		CO2_MH_Z19_Reopen($hash);
 		return undef;
@@ -87,7 +80,7 @@ sub CO2_MH_Z19_Set($@) {					#
 
 sub CO2_MH_Z19_Reopen($) {
     my ($hash) = @_;
-	Log3 $hash->{NAME}, 1, "Reopening serial device";
+	Log3 $hash->{NAME}, 3, "Reopening serial device";
     DevIo_CloseDev($hash);
     sleep(1);
     DevIo_OpenDev( $hash, 0, "CO2_MH_Z19_DoInit" );
@@ -124,7 +117,7 @@ sub CO2_MH_Z19_Get($@) {
 		return undef;
 	} elsif ($cmd eq "update") {
 		CO2_MH_Z19_Send($hash,0x86,0);
-		return CO2_MH_Z19_Update($hash);
+		CO2_MH_Z19_Update($hash);
 		return undef;
 	}
 
@@ -154,7 +147,7 @@ sub CO2_MH_Z19_Attr(@) {					#
 
 sub CO2_MH_Z19_DoInit($) {					#
     my $hash = shift;
-	Log3 $hash->{NAME}, 1, "Init Co2 Sensor";
+	Log3 $hash->{NAME}, 3, "Init Co2 Sensor";
 	CO2_MH_Z19_DeviceInfo($hash);
 	return undef;
 }
@@ -164,22 +157,22 @@ sub CO2_MH_Z19_DeviceInfo($) {					#
     my $name = $hash->{NAME};
 	my @buf;
 	
-	Log3 $hash->{NAME}, 1, "Init Co2 DeviceInfo";
+	Log3 $hash->{NAME}, 3, "Init Co2 DeviceInfo";
 	CO2_MH_Z19_Send($hash,0xa0,0);
 	@buf=CO2_MH_Z19_Read($hash);
 	return "Error reading from device" if @buf==0;
 	my $firmware=chr($buf[2]).chr($buf[3]).chr($buf[4]).chr($buf[5]);
-	Log3 $hash->{NAME}, 1, "Firmware:".$firmware;
+	Log3 $hash->{NAME}, 5, "Firmware:".$firmware;
 	CO2_MH_Z19_Send($hash,0x7D,0);
 	@buf=CO2_MH_Z19_Read($hash);
 	return "Error reading from device" if @buf==0;
 	my $cal=$buf[7];
-	Log3 $hash->{NAME}, 1, "Self Calibration:".(($cal==1)?'on':'off');
+	Log3 $hash->{NAME}, 5, "Self Calibration:".(($cal==1)?'on':'off');
 	CO2_MH_Z19_Send($hash,0x9B,0);
 	@buf=CO2_MH_Z19_Read($hash);
 	return "Error reading from device" if @buf==0;
 	my $range = $buf[4]*256+$buf[5];
-	Log3 $hash->{NAME}, 1, "Range:".$range;
+	Log3 $hash->{NAME}, 5, "Range:".$range;
 	readingsBeginUpdate($hash);
 	readingsBulkUpdate($hash, "Firmware", $firmware);
 	readingsBulkUpdate($hash, "Range", $range);
@@ -211,9 +204,10 @@ sub CO2_MH_Z19_Update($) {
 	return "Error reading from device" if @buf==0;
 	my $co2=$buf[2]*256+$buf[3];
 	my $temp=$buf[4]+$off;
-	Log3 $hash->{NAME}, 1, "Co2:".$co2." temperature:".$temp;
+	Log3 $hash->{NAME}, 5, "Co2:".$co2." temperature:".$temp;
 	readingsBeginUpdate($hash);
 	readingsBulkUpdate($hash, "co2", $co2);
+	readingsBulkUpdate($hash, "state", $co2);
 	readingsBulkUpdate($hash, "temperature", $temp);
 	readingsEndUpdate($hash, 1);	
 }
