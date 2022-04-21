@@ -60,7 +60,7 @@ sub CO2_MH_Z19_Set($@) {					#
 	}
 	if ( $cmd eq "calibrate") {
 		my $arg = shift @args;
-		return "Type yes if you really want to start the device calibration" if !defined $arg || $arg != "yes";
+		return "Type yes if you really want to start the device calibration" if !defined $arg || $arg ne "yes";
 		CO2_MH_Z19_Send($hash,0x87,0);
 		return undef;
 	}
@@ -160,17 +160,17 @@ sub CO2_MH_Z19_DeviceInfo($) {					#
 	Log3 $hash->{NAME}, 3, "Init Co2 DeviceInfo";
 	CO2_MH_Z19_Send($hash,0xa0,0);
 	@buf=CO2_MH_Z19_Read($hash);
-	return "Error reading from device" if @buf==0;
+	return "Error reading from device" if @buf!=8;
 	my $firmware=chr($buf[2]).chr($buf[3]).chr($buf[4]).chr($buf[5]);
 	Log3 $hash->{NAME}, 5, "Firmware:".$firmware;
 	CO2_MH_Z19_Send($hash,0x7D,0);
 	@buf=CO2_MH_Z19_Read($hash);
-	return "Error reading from device" if @buf==0;
+	return "Error reading from device" if @buf!=8;
 	my $cal=$buf[7];
 	Log3 $hash->{NAME}, 5, "Self Calibration:".(($cal==1)?'on':'off');
 	CO2_MH_Z19_Send($hash,0x9B,0);
 	@buf=CO2_MH_Z19_Read($hash);
-	return "Error reading from device" if @buf==0;
+	return "Error reading from device" if @buf!=8;
 	my $range = $buf[4]*256+$buf[5];
 	Log3 $hash->{NAME}, 5, "Range:".$range;
 	readingsBeginUpdate($hash);
@@ -201,15 +201,28 @@ sub CO2_MH_Z19_Update($) {
     my $hash = shift;
 	my $off=AttrVal($hash->{NAME},"tempOffset",0)-44;
 	my @buf=CO2_MH_Z19_Read($hash);
-	return "Error reading from device" if @buf==0;
-	my $co2=$buf[2]*256+$buf[3];
-	my $temp=$buf[4]+$off;
-	Log3 $hash->{NAME}, 5, "Co2:".$co2." temperature:".$temp;
-	readingsBeginUpdate($hash);
-	readingsBulkUpdate($hash, "co2", $co2);
-	readingsBulkUpdate($hash, "state", $co2);
-	readingsBulkUpdate($hash, "temperature", $temp);
-	readingsEndUpdate($hash, 1);	
+	if (@buf==8) {
+		my $co2=$buf[2]*256+$buf[3];
+		my $temp=$buf[4]+$off;
+		Log3 $hash->{NAME}, 5, "Co2:".$co2." temperature:".$temp;
+		readingsBeginUpdate($hash);
+		readingsBulkUpdate($hash, "co2", $co2);
+		readingsBulkUpdate($hash, "state", $co2);
+		readingsBulkUpdate($hash, "temperature", $temp);
+		readingsEndUpdate($hash, 1);
+		$hash->{helper}{retry}=5;
+	} else {
+		readingsSingleUpdate($hash, "state", "Error",1);
+		Log3 $hash->{NAME}, 3, $hash->{NAME}." Error reading from device";
+		#After 5 unsuccessful read attempts, reopen serial device. If that still fails do nothing (counter will go negative endlessly)
+		my $retry=$hash->{helper}{retry};
+		$retry=5 if !defined $retry;
+		$retry--;
+		$hash->{helper}{retry}=$retry;
+		if ($retry==0) {
+			CO2_MHT_Z19_Reopen($hash);
+		}
+	}
 }
 
 sub CO2_MH_Z19_Send($$$) {
@@ -237,16 +250,16 @@ sub CO2_MH_Z19_Read($) {
     my $hash = shift;
     my $name = $hash->{NAME};
 	my $buf = DevIo_SimpleReadWithTimeout( $hash, 1 );
-	return if !defined $buf;
+	return undef if !defined $buf;
 	my @ret = unpack( 'C*', $buf );
-	return if @ret!=9;
+	return undef if @ret!=9;
 	my $crc=pop @ret;
 	my $checksum=0;
 	for my $i (@ret) {
 		$checksum+=$i;
 	}
 	$checksum=0xff-$checksum&0xff;
-	return if $checksum!=$crc;
+	return undef if $checksum!=$crc;
 	return @ret;
 }
 	
