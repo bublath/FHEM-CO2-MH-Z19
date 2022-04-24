@@ -107,7 +107,7 @@ sub CO2_MH_Z19_Get($@) {
 				push (@cList,$k);
 			}
 		}
-		return "Signalbot_Get: Unknown argument $cmd, choose one of " . join(" ", @cList);
+		return "CO2_MH_Z19_Get: Unknown argument $cmd, choose one of " . join(" ", @cList);
 	} # error unknown cmd handling
 	
 	my $arg = shift @args;
@@ -220,7 +220,7 @@ sub CO2_MH_Z19_Update($) {
 		$retry--;
 		$hash->{helper}{retry}=$retry;
 		if ($retry==0) {
-			CO2_MHT_Z19_Reopen($hash);
+			CO2_MH_Z19_Reopen($hash);
 		}
 	}
 }
